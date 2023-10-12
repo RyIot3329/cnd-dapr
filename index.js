@@ -11,26 +11,21 @@ const SERVER_PORT = process.env.CNS_SERVER_PORT || '3000';
 const DAPR_HOST = process.env.CNS_DAPR_HOST || 'localhost';
 const DAPR_PORT = process.env.CNS_DAPR_PORT || '3500';
 
-const BROKER = process.env.CNS_BROKER || 'padi';
+const CNS_PUBSUB = process.env.CNS_PUBSUB || 'cns-pubsub';
+const CNS_BROKER = process.env.CNS_BROKER || 'padi';
 
 // Imports
 
 const dapr = require('@dapr/dapr');
-const broker = require('./brokers/' + BROKER + '.js');
 
-// Local data
-
-const cache = {
-  profiles: {}
-};
+const broker = require('./src/brokers/' + CNS_BROKER + '.js');
+const objects = require('./src/objects.js');
 
 // Dapr server
 
 const server = new dapr.DaprServer({
   serverHost: SERVER_HOST,
   serverPort: SERVER_PORT,
-//  communicationProtocol: CommunicationProtocolEnum.GRPC,
-//  serverHttp: app,
   clientOptions: {
     daprHost: DAPR_HOST,
     daprPort: DAPR_PORT
@@ -38,140 +33,185 @@ const server = new dapr.DaprServer({
 });
 
 // Dapr client
-/*
+
 const client = new dapr.DaprClient({
-  DAPR_HOST,
-  DAPR_PORT});*/
+  daprHost: DAPR_HOST,
+  daprPort: DAPR_PORT
+});
 
-// Locate query in cach
-function locate(query) {
-  const parts = query.split('/');
-  parts.shift();
+// Local data
 
-  if (parts.length > 0) {
-    var obj = cache;
-    var key;
-
-    while (parts.length > 0) {
-      key = parts.shift();
-
-      if (obj[key] === undefined)
-        return null;
-
-      if (parts.length > 0)
-        obj = obj[key];
-    }
-
-    return {
-      obj: obj,
-      key: key
-    }
-  }
-  return null;
-}
+const cache = {
+  profiles: {}
+};
 
 // Get profile endpoint
-async function getProfile(data) {
-  const query = data.query;
-  var res;
-
+async function getProfile(query) {
   try {
     // Profile cached?
-    const profile = query.split('/')[2];
+    const keys = getKeys(query);
+    const profile = keys[1];
 
     if (cache.profiles[profile] === undefined)
       cache.profiles[profile] = await broker.getProfile(profile);
 
     // Locate query
-    const loc = locate(query);
+    const loc = objects.locate(keys, cache);
 
     if (loc === null)
       throw new Error('not found');
 
-    res = loc.obj[loc.key];
+    // Success
+    console.log('GET', query, 'OK');
+    return {data: loc.obj[loc.key]};
   } catch(e) {
     // Failure
-    console.log('GET ' + query + ' BAD: ' + e.message);
+    console.log('GET', query, 'BAD:', e.message);
     return {error: 'bad request'};
   }
-  // Success
-  console.log('GET ' + query + ' OK');
-  return {data: res};
 }
 
 // Get node endpoint
-async function getNode(data) {
-  //
-  const query = data.query;
-  var res;
-
+async function getNode(query) {
   try {
-    // Node cached?
-    if (cache.node === undefined)
-      cache.node = await broker.getNode();
-
     // Locate query
-    const loc = locate(query);
+    const keys = getKeys(query);
+    const loc = objects.locate(keys, cache);
 
     if (loc === null)
       throw new Error('not found');
 
-    res = loc.obj[loc.key];
+    // Success
+    console.log('GET', query, 'OK');
+    return {data: loc.obj[loc.key]};
   } catch(e) {
     // Failure
-    console.log('GET ' + query + ' BAD: ' + e.message);
+    console.log('GET', query, 'BAD:', e.message);
     return {error: 'bad request'};
   }
-  // Success
-  console.log('GET ' + query + ' OK');
-  return {data: res};
 }
 
-//
-async function setNode(data) {
-  const query = data.query;
-//  var res;
-
+// Post node endpoint
+async function postNode(query, data) {
   try {
-    const body = JSON.parse(data.body);
+    // Locate query
+    const keys = getKeys(query);
+    const loc = objects.locate(keys, cache);
 
-console.log(body);
+    if (loc === null)
+      throw new Error('not found');
 
-//  const loc = locate(query);
+    // Merge into cache
+    const prev = objects.duplicate(cache.node);
 
-//  if (loc === null)
-//    return {error: 'bad request'};
+    const data1 = loc.obj[loc.key];
+    const data2 = getData(data);
 
-//  loc.obj[loc.key] = body;
+    const obj1 = objects.isObject(data1);
+    const obj2 = objects.isObject(data2);
 
+    if (obj1 !== obj2)
+      throw new Error('type missmatch');
+
+    loc.obj[loc.key] = obj1?objects.merge(data1, data2):data2;
+
+    // Publish differences
+    const diff = objects.difference(prev, cache.node);
+
+    if (!objects.isEmpty(diff)) {
+      await broker.postNode(diff, cache);
+      await client.pubsub.publish(CNS_PUBSUB, 'node', diff);
+    }
+
+    // Success
+    console.log('POST', query, 'OK');
+    return {data: 'ok'};
   } catch(e) {
     // Failure
-    console.log('POST ' + query + ' BAD: ' + e.message);
+    console.log('POST', query, 'BAD:', e.message);
     return {error: 'bad request'};
   }
-  // Success
-  console.log('POST ' + query + ' OK');
-  return {data: 'ok'};
+}
+
+// Publish node topic
+async function publishNode(topic, data) {
+  try {
+    // Currently only one topic
+    if (topic !== 'node')
+      throw new Error('not found');
+
+    // Merge into cache
+    const prev = objects.duplicate(cache.node);
+    const next = getData(data);
+
+    if (!objects.isObject(next))
+      throw new Error('type missmatch');
+
+    cache.node = objects.merge(cache.node, next);
+
+    // Post differences
+    const diff = objects.difference(prev, cache.node);
+
+    if (!objects.isEmpty(diff))
+      await broker.postNode(diff, cache);
+
+    // Success
+    console.log('PUB', topic, 'OK');
+  } catch(e) {
+    // Failure
+    console.log('PUB', topic, 'BAD:', e.message);
+  }
+}
+
+// Subscription update
+async function updateNode(data) {
+  // Compute differences
+  const diff = objects.difference(cache.node, data);
+
+  if (!objects.isEmpty(diff)) {
+    // Publish differences
+    cache.node = data;
+    await client.pubsub.publish(CNS_PUBSUB, 'node', diff);
+  }
+}
+
+// Split query into keys
+function getKeys(query) {
+  const keys = query.split('/');
+
+  if (query.startsWith('/'))
+    keys.shift();
+
+  return keys;
+}
+
+// Parse request data
+function getData(data) {
+  try {return JSON.parse(data);}
+  catch(e) {return data;}
 }
 
 // Server application
 async function start() {
+  // Ask broker for node
+  cache.node = await broker.getNode();
+  await broker.subscribeNode(updateNode);
+
   // Endpoint listeners
-  await server.invoker.listen('profiles/:profile*', getProfile, {method: dapr.HttpMethod.GET});
+  await server.invoker.listen('profiles/:profile*', (data) => getProfile(data.query), {method: dapr.HttpMethod.GET});
+  await server.invoker.listen('node(/*)?', (data) => getNode(data.query), {method: dapr.HttpMethod.GET});
+  await server.invoker.listen('node(/*)?', (data) => postNode(data.query, data.body), {method: dapr.HttpMethod.POST});
 
-  await server.invoker.listen('node(/*)?', getNode, {method: dapr.HttpMethod.GET});
-  await server.invoker.listen('node(/*)?', setNode, {method: dapr.HttpMethod.POST});
+  // Publish listeners
+  await server.pubsub.subscribe(CNS_PUBSUB, 'node', (data) => publishNode('node', data));
 
-//  await server.invoker.listen('dapr/subscribe', (data) => {
-//    console.log('sub!');
-//  }, {method: dapr.HttpMethod.GET});
-
-  // Start server
+  // Dapr start
   await server.start();
+  await client.start();
 }
 
 // Start application
 start().catch((e) => {
-  console.error(e);
+  console.error('Error:', e.message);
   process.exit(1);
 });
