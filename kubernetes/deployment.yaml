@@ -1,0 +1,29 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cns-dapr
+  namespace: default
+  labels:
+    name: cns-dapr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cns-dapr
+  template:
+    metadata:
+      labels:
+        app: "cns-dapr"
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-port: "3000"
+        dapr.io/app-id: "cns-dapr"
+        dapr.io/log-level: "debug"
+    spec:
+      serviceAccountName: kubecns
+      containers:
+        - name: cns-dapr
+          image: gcr.io/padi-staging/github.com/cnscp/cns-dapr:7d2b8c9cab7f57503c6f5d582becf98353c5b49b
+          ports:
+          - containerPort: 3000
