@@ -24,6 +24,6 @@ spec:
       serviceAccountName: kubecns
       containers:
         - name: cns-dapr
-          image: gcr.io/padi-staging/github.com/cnscp/cns-dapr:67c7157cbe75a05208729d3000ec76fee87ba02e
+          image: gcr.io/padi-staging/github.com/cnscp/cns-dapr:7d2b8c9cab7f57503c6f5d582becf98353c5b49b
           ports:
           - containerPort: 3000
