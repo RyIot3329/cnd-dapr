@@ -146,7 +146,7 @@ function toConnection(data) {
   // From Padi connection
   return {
     profile: data.padiProfile || '',
-    versions: data.padiVersion || '',
+    version: data.padiVersion || '',
     role: (data.padiClient === PADI_THING)?'client':'server',
     client: data.padiClientAlias || '',
     server: data.padiServerAlias || '',
