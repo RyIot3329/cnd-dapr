@@ -62,11 +62,11 @@ async function getProfile(query) {
       throw new Error('not found');
 
     // Success
-    console.log('GET', query, 'OK');
+    console.log('APP GET', query, 'OK');
     return {data: loc.obj[loc.key]};
   } catch(e) {
     // Failure
-    console.log('GET', query, 'BAD:', e.message);
+    console.log('APP GET', query, 'ERROR', e.message);
     return {error: 'bad request'};
   }
 }
@@ -82,11 +82,11 @@ async function getNode(query) {
       throw new Error('not found');
 
     // Success
-    console.log('GET', query, 'OK');
+    console.log('APP GET', query, 'OK');
     return {data: loc.obj[loc.key]};
   } catch(e) {
     // Failure
-    console.log('GET', query, 'BAD:', e.message);
+    console.log('APP GET', query, 'ERROR', e.message);
     return {error: 'bad request'};
   }
 }
@@ -124,11 +124,11 @@ async function postNode(query, data) {
     }
 
     // Success
-    console.log('POST', query, 'OK');
+    console.log('APP POST', query, 'OK');
     return {data: 'ok'};
   } catch(e) {
     // Failure
-    console.log('POST', query, 'BAD:', e.message);
+    console.log('APP POST', query, 'ERROR', e.message);
     return {error: 'bad request'};
   }
 }
@@ -149,17 +149,29 @@ async function publishNode(topic, data) {
 
     cache.node = objects.merge(cache.node, next);
 
+    // Remove deleted connections
+    const conns = cache.node.connections;
+
+    for (const connId in conns) {
+      if (conns[connId] === null)
+        delete conns[connId];
+    }
+
     // Post differences
     const diff = objects.difference(prev, cache.node);
+
+//    console.log('daff -------');
+//    console.log(diff);
+//    console.log('------------');
 
     if (!objects.isEmpty(diff))
       await broker.postNode(diff, cache);
 
     // Success
-    console.log('PUB', topic, 'OK');
+    console.log('APP PUB', topic, 'OK');
   } catch(e) {
     // Failure
-    console.log('PUB', topic, 'BAD:', e.message);
+    console.log('APP PUB', topic, 'ERROR', e.message);
   }
 }
 
@@ -168,9 +180,19 @@ async function updateNode(data) {
   // Compute differences
   const diff = objects.difference(cache.node, data);
 
+//  console.log('node -------');
+//  console.log(cache.node);
+//  console.log('data -------');
+//  console.log(data);
+//  console.log('diff -------');
+//  console.log(diff);
+//  console.log('------------');
+
   if (!objects.isEmpty(diff)) {
     // Publish differences
     cache.node = data;
+
+    console.log('DAPR PUB node');
     await client.pubsub.publish(CNS_PUBSUB, 'node', diff);
   }
 }
@@ -212,6 +234,6 @@ async function start() {
 
 // Start application
 start().catch((e) => {
-  console.error('Error:', e.message);
+  console.error('APP ERROR', e.message);
   process.exit(1);
 });

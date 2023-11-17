@@ -12,6 +12,14 @@ const objects = require('../objects.js');
 
 // Constants
 
+// export CNS_PADI_CP=http://localhost:8083
+// export CNS_PADI_API=http://localhost:8081
+// export CNS_PADI_MQTT=ws://localhost:1881
+
+// unset CNS_PADI_CP
+// unset CNS_PADI_API
+// unset CNS_PADI_MQTT
+
 const PADI_CP = process.env.CNS_PADI_CP || 'https://cp.staging.padi.io';
 const PADI_API = process.env.CNS_PADI_API || 'https://api.staging.padi.io';
 const PADI_MQTT = process.env.CNS_PADI_MQTT || 'wss://cns.staging.padi.io:1881';
@@ -38,7 +46,7 @@ const api = axios.create({
 
 // Get broker profile
 async function getProfile(profile) {
-  console.log('Getting Padi profile', profile);
+  console.log('HTTP GET Padi profile', profile);
 
   // Get profile request
   const res = await cp.get('/profiles/' + profile);
@@ -47,7 +55,7 @@ async function getProfile(profile) {
 
 // Get broker node
 async function getNode() {
-  console.log('Getting Padi thing', PADI_THING);
+  console.log('HTTP GET Padi thing', PADI_THING);
 
   // Get thing request
   const res = await api.get('/thing');
@@ -61,7 +69,7 @@ async function postNode(data, cache) {
 
   if (!objects.isEmpty(thing)) {
     // Post thing request
-    console.log('Posting Padi thing', PADI_THING);
+    console.log('HTTP POST Padi thing', PADI_THING);
     await api.post('/thing', thing);
   }
 
@@ -80,7 +88,7 @@ async function postNode(data, cache) {
         conn.padiProperties = cache.node.connections[id].properties;
 
       // Post connection request
-      console.log('Posting Padi connection', id);
+      console.log('HTTP POST Padi connection', id);
       await api.post('/thing/' + id, conn);
     }
   }
@@ -88,20 +96,44 @@ async function postNode(data, cache) {
 
 // Subscribe to node
 async function subscribeNode(callback) {
-  console.log('Subscribing Padi thing', PADI_THING);
+  console.log('MQTT SUB Padi thing', PADI_THING);
 
   // Connect client
   const client = mqtt.connect(PADI_MQTT, {
     username: PADI_TOKEN
   })
+  // Client connect
+  .on('connect', (connack) => {
+    console.log('MQTT CONNECT Padi');
+  })
+  // Client reconnect
+  .on('reconnect', () => {
+    console.log('MQTT RECONNECT Padi');
+  })
   // Topic message
   .on('message', (topic, data) => {
-    console.log('Message Padi thing', PADI_THING);
+    console.log('MQTT MESSAGE Padi thing', PADI_THING);
     callback(toNode(JSON.parse(data)));
+  })
+  // Client offline
+  .on('offline', () => {
+    console.log('MQTT OFFLINE Padi');
+  })
+  // Client disconnect
+  .on('disconnect', (packet) => {
+    console.log('MQTT DISCONNECT Padi');
+  })
+  // Client close
+  .on('close', () => {
+    console.log('MQTT CLOSE Padi');
+  })
+  // Client end
+  .on('end', () => {
+    console.log('MQTT END Padi');
   })
   // Failure
   .on('error', (e) => {
-    console.error('Error:', e.message);
+    console.error('MQTT ERROR ', e.message);
   });
 
   // Subscribe to thing

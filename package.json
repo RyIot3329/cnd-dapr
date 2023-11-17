@@ -6,9 +6,7 @@
   "license": "ISC",
   "main": "index.js",
   "scripts": {
-    "start": "node index",
-    "stop": "killall node",
-    "start:dapr": "dapr run --app-id cns-dapr --app-port 3000 --app-protocol http --dapr-http-port 3500 --resources-path components -- npm run start",
+    "start:dapr": "dapr run --app-id cns-dapr --app-port 3000 --app-protocol http --dapr-http-port 3500 --resources-path components -- node index",
     "stop:dapr": "dapr stop --app-id cns-dapr",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

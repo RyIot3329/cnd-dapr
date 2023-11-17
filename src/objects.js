@@ -9,7 +9,7 @@ const UNDEFINED = '[object Undefined]';
 const OBJECT = '[object Object]';
 const ARRAY = '[object Array]';
 
-const DELETED = {};
+const DELETED = null;
 
 // Methods
 
