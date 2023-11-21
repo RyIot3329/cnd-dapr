@@ -6,8 +6,10 @@
   "license": "ISC",
   "main": "index.js",
   "scripts": {
-    "start:dapr": "dapr run --app-id cns-dapr --app-port 3000 --app-protocol http --dapr-http-port 3500 --resources-path components -- node index",
-    "stop:dapr": "dapr stop --app-id cns-dapr",
+    "start": "dapr run --app-id cns-dapr --app-port 3000 --app-protocol http --dapr-http-port 3500 --resources-path components -- node index",
+    "stop": "dapr stop --app-id cns-dapr",
+    "start:dapr": "npm run start",
+    "stop:dapr": "npm run stop",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

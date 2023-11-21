@@ -1,4 +1,4 @@
-// index.js - Dapr CNS server
+// index.js - CNS Dapr
 // Copyright 2023 Padi, Inc. All Rights Reserved.
 
 'use strict';
@@ -13,6 +13,8 @@ const DAPR_PORT = process.env.CNS_DAPR_PORT || '3500';
 
 const CNS_PUBSUB = process.env.CNS_PUBSUB || 'cns-pubsub';
 const CNS_BROKER = process.env.CNS_BROKER || 'padi';
+const CNS_CONTEXT = process.env.CNS_CONTEXT || '';
+const CNS_TOKEN = process.env.CNS_TOKEN || '';
 
 // Imports
 
@@ -110,17 +112,17 @@ async function postNode(query, data) {
     const obj1 = objects.isObject(data1);
     const obj2 = objects.isObject(data2);
 
-    if (obj1 !== obj2)
-      throw new Error('type missmatch');
+//    if (obj1 !== obj2)
+//      throw new Error('type missmatch');
 
-    loc.obj[loc.key] = obj1?objects.merge(data1, data2):data2;
+    loc.obj[loc.key] = (obj1 && obj2)?objects.merge(data1, data2):data2;
 
     // Publish differences
     const diff = objects.difference(prev, cache.node);
 
     if (!objects.isEmpty(diff)) {
       await broker.postNode(diff, cache);
-      await client.pubsub.publish(CNS_PUBSUB, 'node', diff);
+      await client.pubsub.publish(CNS_PUBSUB, CNS_CONTEXT, diff);
     }
 
     // Success
@@ -137,7 +139,7 @@ async function postNode(query, data) {
 async function publishNode(topic, data) {
   try {
     // Currently only one topic
-    if (topic !== 'node')
+    if (topic !== CNS_CONTEXT)
       throw new Error('not found');
 
     // Merge into cache
@@ -160,10 +162,6 @@ async function publishNode(topic, data) {
     // Post differences
     const diff = objects.difference(prev, cache.node);
 
-//    console.log('daff -------');
-//    console.log(diff);
-//    console.log('------------');
-
     if (!objects.isEmpty(diff))
       await broker.postNode(diff, cache);
 
@@ -180,20 +178,12 @@ async function updateNode(data) {
   // Compute differences
   const diff = objects.difference(cache.node, data);
 
-//  console.log('node -------');
-//  console.log(cache.node);
-//  console.log('data -------');
-//  console.log(data);
-//  console.log('diff -------');
-//  console.log(diff);
-//  console.log('------------');
-
   if (!objects.isEmpty(diff)) {
     // Publish differences
     cache.node = data;
 
     console.log('DAPR PUB node');
-    await client.pubsub.publish(CNS_PUBSUB, 'node', diff);
+    await client.pubsub.publish(CNS_PUBSUB, CNS_CONTEXT, diff);
   }
 }
 
@@ -203,6 +193,11 @@ function getKeys(query) {
 
   if (query.startsWith('/'))
     keys.shift();
+
+  if (keys[0] !== CNS_CONTEXT)
+    throw new Error('wrong context');
+
+  keys[0] = 'node';
 
   return keys;
 }
@@ -216,16 +211,21 @@ function getData(data) {
 // Server application
 async function start() {
   // Ask broker for node
+  await broker.start({
+    context: CNS_CONTEXT,
+    token: CNS_TOKEN
+  });
+
   cache.node = await broker.getNode();
   await broker.subscribeNode(updateNode);
 
   // Endpoint listeners
   await server.invoker.listen('profiles/:profile*', (data) => getProfile(data.query), {method: dapr.HttpMethod.GET});
-  await server.invoker.listen('node(/*)?', (data) => getNode(data.query), {method: dapr.HttpMethod.GET});
-  await server.invoker.listen('node(/*)?', (data) => postNode(data.query, data.body), {method: dapr.HttpMethod.POST});
+  await server.invoker.listen(CNS_CONTEXT + '(/*)?', (data) => getNode(data.query), {method: dapr.HttpMethod.GET});
+  await server.invoker.listen(CNS_CONTEXT + '(/*)?', (data) => postNode(data.query, data.body), {method: dapr.HttpMethod.POST});
 
   // Publish listeners
-  await server.pubsub.subscribe(CNS_PUBSUB, 'node', (data) => publishNode('node', data));
+  await server.pubsub.subscribe(CNS_PUBSUB, CNS_CONTEXT, (data) => publishNode(CNS_CONTEXT, data));
 
   // Dapr start
   await server.start();
@@ -234,6 +234,6 @@ async function start() {
 
 // Start application
 start().catch((e) => {
-  console.error('APP ERROR', e.message);
+  console.error('Error:', e.message);
   process.exit(1);
 });

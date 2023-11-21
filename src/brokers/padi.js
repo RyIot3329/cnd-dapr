@@ -1,4 +1,4 @@
-// padi.js - Dapr CNS Padi broker
+// padi.js - CNS Dapr Padi broker
 // Copyright 2023 Padi, Inc. All Rights Reserved.
 
 'use strict';
@@ -12,37 +12,65 @@ const objects = require('../objects.js');
 
 // Constants
 
+// Running production:
+//
+// export CNS_PADI_CP=https://cp.padi.io
+// export CNS_PADI_API=https://api.padi.io
+// export CNS_PADI_MQTT=wss://cns.padi.io:1881
+//
+// Running staging:
+//
+// export CNS_PADI_CP=https://cp.staging.padi.io
+// export CNS_PADI_API=https://api.staging.padi.io
+// export CNS_PADI_MQTT=wss://cns.staging.padi.io:1881
+//
+// Running localhost:
+//
 // export CNS_PADI_CP=http://localhost:8083
 // export CNS_PADI_API=http://localhost:8081
 // export CNS_PADI_MQTT=ws://localhost:1881
+//
+// export CNS_CONTEXT=vUEFncafIxjGHgoIvwtB
+// export CNS_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJwYWRpLWFwcCIsImlzcyI6IllRM0pCTnR1Wm9qeXdrU0VhUEhNIiwic3ViIjoidlVFRm5jYWZJeGpHSGdvSXZ3dEIiLCJpYXQiOjE2OTQwODQ3NjZ9.VLDDyCF6JoW35pXgGohQv2l_rHdQVREUWDykLiDsV0o
 
-// unset CNS_PADI_CP
-// unset CNS_PADI_API
-// unset CNS_PADI_MQTT
+const PADI_CP = process.env.CNS_PADI_CP || 'https://cp.padi.io';
+const PADI_API = process.env.CNS_PADI_API || 'https://api.padi.io';
+const PADI_MQTT = process.env.CNS_PADI_MQTT || 'wss://cns.padi.io:1881';
 
-const PADI_CP = process.env.CNS_PADI_CP || 'https://cp.staging.padi.io';
-const PADI_API = process.env.CNS_PADI_API || 'https://api.staging.padi.io';
-const PADI_MQTT = process.env.CNS_PADI_MQTT || 'wss://cns.staging.padi.io:1881';
+// Local data
 
-const PADI_THING = process.env.CNS_PADI_THING || 'vUEFncafIxjGHgoIvwtB';
-const PADI_TOKEN = process.env.CNS_PADI_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJwYWRpLWFwcCIsImlzcyI6IllRM0pCTnR1Wm9qeXdrU0VhUEhNIiwic3ViIjoidlVFRm5jYWZJeGpHSGdvSXZ3dEIiLCJpYXQiOjE2OTQwODQ3NjZ9.VLDDyCF6JoW35pXgGohQv2l_rHdQVREUWDykLiDsV0o';
+var context;
+var token;
 
-// Service endpoints
+var cp;
+var api;
 
-const cp = axios.create({
-  baseURL: PADI_CP,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+// Start broker
+async function start(options) {
+  // Set context and token
+  context = options.context || '';
+  token = options.token || '';
 
-const api = axios.create({
-  baseURL: PADI_API,
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + PADI_TOKEN
-  }
-});
+  if (context === '' || token === '')
+    throw new Error('not configured');
+
+  // Profile server
+  cp = axios.create({
+    baseURL: PADI_CP,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  // API server
+  api = axios.create({
+    baseURL: PADI_API,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    }
+  });
+}
 
 // Get broker profile
 async function getProfile(profile) {
@@ -55,7 +83,7 @@ async function getProfile(profile) {
 
 // Get broker node
 async function getNode() {
-  console.log('HTTP GET Padi thing', PADI_THING);
+  console.log('HTTP GET Padi thing', context);
 
   // Get thing request
   const res = await api.get('/thing');
@@ -69,7 +97,7 @@ async function postNode(data, cache) {
 
   if (!objects.isEmpty(thing)) {
     // Post thing request
-    console.log('HTTP POST Padi thing', PADI_THING);
+    console.log('HTTP POST Padi thing', context);
     await api.post('/thing', thing);
   }
 
@@ -96,11 +124,11 @@ async function postNode(data, cache) {
 
 // Subscribe to node
 async function subscribeNode(callback) {
-  console.log('MQTT SUB Padi thing', PADI_THING);
+  console.log('MQTT SUB Padi thing', context);
 
   // Connect client
   const client = mqtt.connect(PADI_MQTT, {
-    username: PADI_TOKEN
+    username: token
   })
   // Client connect
   .on('connect', (connack) => {
@@ -112,7 +140,7 @@ async function subscribeNode(callback) {
   })
   // Topic message
   .on('message', (topic, data) => {
-    console.log('MQTT MESSAGE Padi thing', PADI_THING);
+    console.log('MQTT MESSAGE Padi thing', context);
     callback(toNode(JSON.parse(data)));
   })
   // Client offline
@@ -137,7 +165,7 @@ async function subscribeNode(callback) {
   });
 
   // Subscribe to thing
-  client.subscribe('thing/' + PADI_THING);
+  client.subscribe('thing/' + context);
 }
 
 // Convert to profile
@@ -156,7 +184,7 @@ function toNode(data) {
   // From Padi thing and connections
   const node = {};
 
-  const thing = data.padiThings[PADI_THING];
+  const thing = data.padiThings[context];
   const conns = data.padiConnections;
 
   // Convert connections
@@ -179,7 +207,7 @@ function toConnection(data) {
   return {
     profile: data.padiProfile || '',
     version: data.padiVersion || '',
-    role: (data.padiClient === PADI_THING)?'client':'server',
+    role: (data.padiClient === context)?'client':'server',
     client: data.padiClientAlias || '',
     server: data.padiServerAlias || '',
     status: data.padiStatus || '',
@@ -211,8 +239,9 @@ function fromConnection(data) {
 }
 // Exports
 
-exports.getProfile = getProfile;
+exports.start = start;
 
+exports.getProfile = getProfile;
 exports.getNode = getNode;
 exports.postNode = postNode;
 

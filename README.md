@@ -11,6 +11,10 @@
 
 ## About
 
+This repository contains the CNS Dapr Sidecar, written in [Node.js](https://nodejs.org/en/about) and using the [Dapr SDK](https://docs.dapr.io/developing-applications/sdks/js/).
+
+When running, the Sidecar connects to a CNS Broker and monitors context and connection changes. Changes are published to the context topic of the `cns-pubsub` service. The Sidecar also exposes various HTTP endpoints to read and write to the context and its connections.
+
 ## Installing
 
 To **install** or **update** the application, you should fetch the latest version from this Git repository. To do that, you may either download and unpack the repo zip file, or clone the repo using:
@@ -38,85 +42,94 @@ Your application should now be ready to rock.
 Once installed, run the application with:
 
 ```sh
-npm run start:dapr
+npm run start
 ```
 
 To shut down the application, hit `ctrl-c`.
 
 ### Environment Variables
 
-The application uses the following environment variables to configure itself:
+The Sidecar uses the following environment variables to configure itself:
 
-#### CNS Dapr
+| Name             | Description                      | Default                |
+|------------------|----------------------------------|------------------------|
+| CNS_SERVER_HOST  | CNS Dapr server host             | 'localhost'            |
+| CNS_SERVER_PORT  | CNS Dapr server port             | '3000'                 |
+| CNS_DAPR_HOST    | Dapr host                        | 'localhost'            |
+| CNS_DAPR_PORT    | Dapr port                        | '3500'                 |
+| CNS_PUBSUB       | CNS Dapr PUBSUB component ID     | 'cns-pubsub'           |
+| CNS_BROKER       | CNS Broker service               | 'padi'                 |
+| CNS_CONTEXT      | CNS Dapr context                 | Must be set            |
+| CNS_TOKEN        | CNS Dapr token                   | Must be set            |
 
-<table>
-  <tr><th>Name</th><th>Description</th><th>Default</th></tr>
-  <tr><td>CNS_SERVER_HOST</td><td>CNS Dapr server host</td><td>'localhost'</td></tr>
-  <tr><td>CNS_SERVER_PORT</td><td>CNS Dapr server port</td><td>'3000'</td></tr>
-  <tr><td>CNS_DAPR_HOST</td><td>Dapr host</td><td>'localhost'</td></tr>
-  <tr><td>CNS_DAPR_PORT</td><td>Dapr port</td><td>'3500'</td></tr>
-  <tr><td>CNS_PUBSUB</td><td>CNS Dapr PUBSUB component ID</td><td>'cns-pubsub'</td></tr>
-  <tr><td>CNS_BROKER</td><td>CNS Dapr broker module</td><td>'padi'</td></tr>
-</table>
+#### Broker Service
 
-#### Padi Broker
+The Sidecar communicates to the CNS Broker via the service specified in `CNS_BROKER`.
 
-<table>
-  <tr><th>Name</th><th>Description</th><th>Default</th></tr>
-  <tr><td>CNS_PADI_CP</td><td>Padi Broker server URI</td><td>'https://cp.staging.padi.io'</td></tr>
-  <tr><td>CNS_PADI_API</td><td>Padi API server URI</td><td>'https://api.staging.padi.io'</td></tr>
-  <tr><td>CNS_PADI_MQTT</td><td>Padi MQTT server URI</td><td>'wss://cns.staging.padi.io:1881'</td></tr>
-  <tr><td>CNS_PADI_THING</td><td>Padi thing ID</td><td>Must be set</td></tr>
-  <tr><td>CNS_PADI_TOKEN</td><td>Padi thing access token</td><td>Must be set</td></tr>
-</table>
+| Service          | Description                                               |
+|------------------|-----------------------------------------------------------|
+| padi             | Padi CNS Broker                                           |
 
-### Invocation API Reference
+Currently, only the Padi CNS Broker is implemented.
 
-Dapr provides the ability to call other applications that use Dapr with a unique named identifier. The identifier for the CNS Dapr app is `cns-dapr`. The following HTTP endpoint lets you invoke a method on the CNS Dapr app:
+##### Padi CNS Broker
+
+The Padi CNS Broker service uses the following environment variables:
+
+| Name             | Description                 | Default                     |
+|------------------|-----------------------------|-----------------------------|
+| CNS_PADI_CP      | Padi Profile server URI     | 'https<area>://cp.padi.io'  |
+| CNS_PADI_API     | Padi API server URI         | 'https<area>://api.padi.io' |
+| CNS_PADI_MQTT    | Padi MQTT server URI        | 'wss://cns.padi.io:1881'    |
+
+### Dapr SDK
+
+A [Dapr SDK](https://docs.dapr.io/developing-applications/sdks/) exists that puts a wrapper around the functionality described below and is implemented for various languages.
+
+### Invocation Reference
+
+Dapr provides the ability to call other applications that use Dapr with a unique named identifier. The identifier for the CNS Dapr Sidecar is `cns-dapr`. The following HTTP endpoint lets you invoke a method on the Sidecar:
 
 `GET|POST|PUT|DELETE http://localhost:<daprPort>/v1.0/invoke/cns-dapr/method/<method>`
 
 Where the HTTP method will:
 
-<table>
-  <tr><th>HTTP Method</th><th>Description</th></tr>
-  <tr><td>GET</td><td>Read data from the endpoint</td></tr>
-  <tr><td>POST</td><td>Write data to the endpoint</td></tr>
-  <tr><td>PUT</td><td>NYI</td></tr>
-  <tr><td>DELETE</td><td>NYI</td></tr>
-</table>
+| HTTP Method      | Description                                               |
+|------------------|-----------------------------------------------------------|
+| GET              | Read data from the endpoint                               |
+| POST             | Write data to the endpoint                                |
+| PUT              | NYI                                                       |
+| DELETE           | NYI                                                       |
 
 CNS Dapr exposes the following endpoint methods:
 
-<table>
-  <tr><th>Invoke Method</th><th>Description</th></tr>
-  <tr><td>node</td><td>All node metadata and connections</td></tr>
-  <tr><td>node/&lt;meta&gt;</td><td>A specific node metadata field</td></tr>
-  <tr><td>node/connections</td><td>All connections</td></tr>
-  <tr><td>node/connections/&lt;id&gt;</td><td>A specific connection</td></tr>
-  <tr><td>node/connections/&lt;id&gt;/&lt;meta&gt;</td><td>A specific connection metadata field</td></tr>
-  <tr><td>node/connections/&lt;id&gt;/properties</td><td>All properties of a connection</td></tr>
-  <tr><td>node/connections/&lt;id&gt;/properties/&lt;name&gt;</td><td>A specific property value</td></tr>
-  <tr><td>profiles/&lt;name&gt;</td><td>A named profile deffinition</td></tr>
-</table>
+| Invoke Method                                  | Description                 |
+|------------------------------------------------|-----------------------------|
+| `<context>`                                    | All context and connections |
+| `<context>/<name>`                             | A context metadata field    |
+| `<context>/connections`                        | All connections             |
+| `<context>/connections/<id>`                   | A specific connection       |
+| `<context>/connections/<id>/<name>`            | A connection metadata field |
+| `<context>/connections/<id>/properties`        | All connection properties   |
+| `<context>/connections/<id>/properties/<name>` | A specific property value   |
+| `profiles/<name>`                              | A named profile definition  |
 
 After making a request, Dapr returns one of the following status codes:
 
-<table>
-  <tr><th>HTTP Status</th><th>Description</th></tr>
-  <tr><td>200</td><td>Request succeded</td></tr>
-  <tr><td>400</td><td>Method name not given</td></tr>
-  <tr><td>403</td><td>Invocation forbidden by access control</td></tr>
-  <tr><td>500</td><td>Request failed</td></tr>
-</table>
+| Status   | Description                                                       |
+|----------|-------------------------------------------------------------------|
+| 200      | Request succeded                                                  |
+| 400      | Method name not given                                             |
+| 403      | Invocation forbidden by access control                            |
+| 500      | Request failed                                                    |
 
 All HTTP requests/responses use JSON and the `application/json` mime type.
 
-A successful GET request will return:
+A successful `GET` request will return:
 
 `{"data": { ... }}`
 
-A successfull POST, PUT or DELETE request will return:
+A successfull `POST`, `PUT` or `DELETE` request will return:
 
 `{"data": "ok"}`
 
@@ -131,22 +144,22 @@ The following examples use `curl` in a terminal window:
 ---
 
 ```sh
-curl http://localhost:3500/v1.0/invoke/cns-dapr/method/node
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context>
 ```
 
-Requests full node metadata and connections and will output:
+Requests full context metadata and connections and will output:
 
 `{"data": { ... }}`
 
-with the full JSON description of the node (See: Node Schema).
+with the full JSON description of the context (See: Context Schema).
 
 ---
 
 ```sh
-curl http://localhost:3500/v1.0/invoke/cns-dapr/method/node/comment
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context>/comment
 ```
 
-Requests a specific node metadata field and will output:
+Requests a specific context metadata field and will output:
 
 `{"data": "Testing"}`
 
@@ -155,7 +168,7 @@ with the current value of the specified field.
 ---
 
 ```sh
-curl http://localhost:3500/v1.0/invoke/cns-dapr/method/node/garbage
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context>/garbage
 ```
 
 Requests a field that does not exist and outputs:
@@ -167,31 +180,57 @@ since **garbage** is not a valid field name.
 ---
 
 ```sh
-curl http://localhost:3500/v1.0/invoke/cns-dapr/method/node \
-    -H "Content-Type: application/json" \
-    -d '{"comment": "Testing 1"}'
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context> \
+     -H "Content-Type: application/json" \
+     -d '{"comment": "Testing 1"}'
 ```
 
-output: {"data": "ok"}
+Issues a post to the `comment` context metadata field and outputs:
+
+`{"data": "ok"}`
+
+The field should now be set to the string `'Testing 1'`.\
+Multiple fields may be set using this method.
 
 ---
 
 ```sh
-curl http://localhost:3500/v1.0/invoke/cns-dapr/method/node/comment \
-    -H "Content-Type: application/json" \
-    -d '"Testing 2"'
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context>/comment \
+     -H "Content-Type: application/json" \
+     -d '"Testing 2"'
 ```
 
-output: {"data": "ok"}
+Issues a post to the `comment` field only and outputs:
+
+`{"data": "ok"}`
+
+The field should now be set to the string `'Testing 2'`.
 
 ---
 
 ```sh
-curl http://localhost:3500/v1.0/invoke/cns-dapr/method/node/comment
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context>/connections
 ```
 
-output: {"data":"Test2"}
+Requests all the current connections of the context and outputs:
 
+`{"data": { ... }}`
+
+with a map of connection objects (See: Context Schema).
+
+---
+
+```sh
+curl http://localhost:3500/v1.0/invoke/cns-dapr/method/<context>/connections/<id>/properties \
+     -H "Content-Type: application/json" \
+     -d '{"foo1": 1000, "foo2": 2000}'
+```
+
+Issues a post to the specified `<id>` connection properties and outputs:
+
+`{"data": "ok"}`
+
+The properties `foo1` and `foo2` will be set accordingly.
 
 ---
 
@@ -207,14 +246,13 @@ with the full descriptor for the profile (See: Profile Schema).
 
 ---
 
-### Pub/Sub API Reference
+### Pub/Sub Reference
 
 CNS Dapr publishes to the following topics:
 
-<table>
-  <tr><th>Topic Name</th><th>Description</th></tr>
-  <tr><td>node</td><td>All node metadata and connection changes</td></tr>
-</table>
+| Topic            | Description                                               |
+|------------------|-----------------------------------------------------------|
+| `<context>`      | All context metadata and connection changes               |
 
 Dapr will invoke the following endpoint of an application to discover topic subscriptions:
 
@@ -226,8 +264,8 @@ The application should return a JSON block containing the topics it wishes to su
 [
   {
     "pubsubname": "cns-pubsub",
-    "topic": "node",
-    "route": "/node"
+    "topic": "<context>",
+    "route": "/cns-pubsub--<context>--default"
   }
 ]
 ```
@@ -240,30 +278,32 @@ To deliver topic messages, a HTTP `POST` will be made to the application at the 
 
 
 
-### Dapr SDK
+### Context Schema
 
+Includes metadata and connection information for a context.
 
+| Property         | Description                                               |
+|------------------|-----------------------------------------------------------|
+| name             | Name of the context                                       |
+| title            | Title of the context                                      |
+| comment          | Comment of the context                                    |
+| connections      | Connections of the context                                |
 
-### Node Schema
+The `connections` property is a map containing the definitions of each connection currently made to this context. The key for the map is a unique ID for the connection. If an existing connection is removed, it will be mapped to `null`. If no connections exist, this map will be empty.
 
-<table>
-  <tr><th>Property</th><th>Description</th></tr>
-  <tr><td>name</td><td>Name of this node</td></tr>
-  <tr><td>title</td><td>Title of this node</td></tr>
-  <tr><td>comment</td><td>Comment of this node</td></tr>
-  <tr><td>connections</td><td>Connections of this node</td></tr>
-</table>
+Each connection contains the following properties:
 
-<table>
-  <tr><th>Property</th><th>Description</th></tr>
-  <tr><td>profile</td><td>Profile of this connection</td></tr>
-  <tr><td>version</td><td>Profile version of this connection</td></tr>
-  <tr><td>role</td><td>Role of this connection</td></tr>
-  <tr><td>client</td><td>Client name of this connection</td></tr>
-  <tr><td>server</td><td>Server name of this connection</td></tr>
-  <tr><td>status</td><td>Status of this connection</td></tr>
-  <tr><td>properties</td><td>Properties of this connection</td></tr>
-</table>
+| Property         | Description                                               |
+|------------------|-----------------------------------------------------------|
+| profile          | Name of the profile that made the connection              |
+| version          | Version of the profile (blank for latest)                 |
+| role             | Role of the connection (client or server)                 |
+| client           | Client name of the connection                             |
+| server           | Server name of the connection                             |
+| status           | Status of the connection                                  |
+| properties       | Properties of the connection                              |
+
+The `properties` property is a map containing a key / value pair for each property of the connection.
 
 #### Example
 
@@ -297,22 +337,26 @@ To deliver topic messages, a HTTP `POST` will be made to the application at the 
 
 ### Profile Schema
 
-<table>
-  <tr><th>Property</th><th>Description</th></tr>
-  <tr><td>name</td><td></td></tr>
-  <tr><td>title</td><td></td></tr>
-  <tr><td>comment</td><td></td></tr>
-  <tr><td>versions</td><td></td></tr>
-</table>
+Includes metadata and version information for a profile.
 
-<table>
-  <tr><th>Property</th><th>Description</th></tr>
-  <tr><td>name</td><td></td></tr>
-  <tr><td>description</td><td></td></tr>
-  <tr><td>server</td><td></td></tr>
-  <tr><td>propagate</td><td></td></tr>
-  <tr><td>required</td><td></td></tr>
-</table>
+| Property         | Description                                               |
+|------------------|-----------------------------------------------------------|
+| name             | Name of the profile                                       |
+| title            | Title of the profile                                      |
+| comment          | Comment of the profile                                    |
+| versions         | Versions of the profile                                   |
+
+The `versions` property is an array containing the definitions of each version of the profile, with version 1 as the first element, version 2 the second, and so on. If a connection does not specify a version, it is assumed it wants to use the 'latest' version. In this case, the last version in the list will be used.
+
+Each version contains an array of property definition objects:
+
+| Property         | Description                                               |
+|------------------|-----------------------------------------------------------|
+| name             | Name of the property                                      |
+| description      | Description of the property                               |
+| server           | Server side flag                                          |
+| propagate        | Propagate flag                                            |
+| required         | Required flag                                             |
 
 #### Example
 
